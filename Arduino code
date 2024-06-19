@@ -1,0 +1,216 @@
+#include <SPI.h>
+#include <SD.h>
+
+const int chipSelect = 10;
+const int buttonPin = 2; // Pin where the button is connected
+const int analogPin = A0; // Replace A0 with the analog pin you are using
+
+const int segmentA = 3; // Connect segment A to pin 3
+const int segmentB = 4; // Connect segment B to pin 4
+const int segmentC = 5; // Connect segment C to pin 5
+const int segmentD = 6; // Connect segment D to pin 6
+const int segmentE = 7; // Connect segment E to pin 7
+const int segmentF = 8; // Connect segment F to pin 8
+const int segmentG = 9; // Connect segment G to pin 9
+
+bool logging = false;
+unsigned long startTime = 0;
+int fileIndex = 0;
+String filename;
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+
+  pinMode(buttonPin, INPUT_PULLUP); // Set button pin as input with pull-up resistor
+  Serial.print("Initializing SD card...");
+
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Card failed, or not present");
+    displayDigit(1); // Display '1' for SD card initialization error
+    while (1);
+  }
+  Serial.println("card initialized.");
+  displayDigit(0); // Display '0' for successful SD card initialization
+
+  // Set all segment pins as output
+  pinMode(segmentA, OUTPUT);
+  pinMode(segmentB, OUTPUT);
+  pinMode(segmentC, OUTPUT);
+  pinMode(segmentD, OUTPUT);
+  pinMode(segmentE, OUTPUT);
+  pinMode(segmentF, OUTPUT);
+  pinMode(segmentG, OUTPUT);
+}
+
+void clearDisplay() {
+  digitalWrite(segmentA, LOW);
+  digitalWrite(segmentB, LOW);
+  digitalWrite(segmentC, LOW);
+  digitalWrite(segmentD, LOW);
+  digitalWrite(segmentE, LOW);
+  digitalWrite(segmentF, LOW);
+  digitalWrite(segmentG, LOW);
+}
+
+void displayDigit(int digit) {
+  clearDisplay();
+  switch (digit) {
+    case 0:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, HIGH);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, LOW);
+      break;
+    case 1:
+      digitalWrite(segmentA, LOW);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, LOW);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, LOW);
+      digitalWrite(segmentG, LOW);
+      break;
+    case 2:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, LOW);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, HIGH);
+      digitalWrite(segmentF, LOW);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 3:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, LOW);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 4:
+      digitalWrite(segmentA, LOW);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, LOW);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 5:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, LOW);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 6:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, LOW);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, HIGH);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 7:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, LOW);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, LOW);
+      digitalWrite(segmentG, LOW);
+      break;
+    case 8:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, HIGH);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, HIGH);
+      break;
+    case 9:
+      digitalWrite(segmentA, HIGH);
+      digitalWrite(segmentB, HIGH);
+      digitalWrite(segmentC, HIGH);
+      digitalWrite(segmentD, HIGH);
+      digitalWrite(segmentE, LOW);
+      digitalWrite(segmentF, HIGH);
+      digitalWrite(segmentG, HIGH);
+      break;
+    default:
+      break;
+  }
+}
+
+void loop() {
+  static bool buttonPressed = false;
+  static unsigned long lastDebounceTime = 0;
+  const unsigned long debounceDelay = 50;
+
+  int buttonState = digitalRead(buttonPin);
+  if (buttonState == LOW && !buttonPressed && (millis() - lastDebounceTime) > debounceDelay) {
+    buttonPressed = true;
+    lastDebounceTime = millis();
+
+    if (logging) {
+      logging = false;
+      Serial.println("Logging stopped.");
+      displayDigit(9); // Display '9' when logging stops
+    } else {
+      logging = true;
+      startTime = millis();
+      fileIndex++;
+      filename = "datalog" + String(fileIndex) + ".txt";
+      Serial.println("Logging started: " + filename);
+    }
+  }
+
+  if (buttonState == HIGH && buttonPressed && (millis() - lastDebounceTime) > debounceDelay) {
+    buttonPressed = false;
+    lastDebounceTime = millis();
+  }
+
+  if (logging) {
+    unsigned long currentTime = millis();
+    int remainingTime = 5 - (currentTime - startTime) / 1000;
+
+    if (remainingTime >= 0 && remainingTime <= 5) {
+      displayDigit(remainingTime); // Display the remaining time
+    }
+
+    if ((currentTime - startTime) <= 5000) {
+      int sensor = analogRead(analogPin);
+      String dataString = String(sensor);
+      File dataFile = SD.open(filename.c_str(), FILE_WRITE);
+
+      if (dataFile) {
+        dataFile.println(dataString);
+        dataFile.close();
+        Serial.println(dataString);
+      } else {
+        Serial.println("error opening " + filename);
+      }
+    } else {
+      logging = false;
+      Serial.println("Logging stopped after 5 seconds.");
+
+      // Determine success or failure after logging
+      if (SD.exists(filename.c_str())) {
+        displayDigit(0); // Display '0' for success
+      } else {
+        displayDigit(1); // Display '1' for error
+      }
+    }
+  }
+}
